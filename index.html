@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KVKK Gap Analizi | BİGR Güvenlik Değerlendirme</title>
+<meta name="description" content="KVKK ve BİGR (Bilgi Güvenliği Rehberi) uyumluluğu için interaktif gap analizi aracı. 96 kritik soru ile 1296 tedbiri değerlendirir.">
+<link rel="stylesheet" href="style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+</head>
+<body>
+
+<header class="app-header">
+  <div class="logo">
+    <div class="logo-mark">🛡</div>
+    <div>
+      <div class="logo-text">KVKK Gap Analizi</div>
+      <div class="logo-sub">BİGR Güvenlik Değerlendirme Aracı</div>
+    </div>
+  </div>
+  <div class="header-stats">
+    <div class="hstat"><div class="hstat-val" id="h-answered">0</div><div class="hstat-lbl">Yanıtlanan</div></div>
+    <div class="hstat"><div class="hstat-val" id="h-score">—</div><div class="hstat-lbl">Uyum</div></div>
+    <div class="hstat"><div class="hstat-val" id="h-covered">0</div><div class="hstat-lbl">Tedbir</div></div>
+  </div>
+  <div class="header-btns">
+    <button class="btn btn-ghost" onclick="showAPIKeyModal()" title="Anthropic API anahtarı yönetimi">🔑 API</button>
+    <button class="btn btn-ghost" onclick="exportJSON()" title="Verileri JSON olarak indir">💾 İndir</button>
+    <button class="btn btn-ghost" onclick="resetAll()" title="Tüm verileri sil">↺ Sıfırla</button>
+    <button class="btn btn-ghost" onclick="window.print()" title="Raporu yazdır">🖨 Yazdır</button>
+  </div>
+</header>
+
+<nav class="tabs">
+  <div class="tab active" data-page="sorular" onclick="switchTab('sorular')">
+    📋 Sorular <span class="tab-badge" id="badge-sorular">0/96</span>
+  </div>
+  <div class="tab" data-page="detay" onclick="switchTab('detay')">
+    📊 1.296 Tedbir Detayı <span class="tab-badge" id="badge-detay">0/1296</span>
+  </div>
+  <div class="tab" data-page="rapor" onclick="switchTab('rapor')">
+    📑 Raporlama
+  </div>
+</nav>
+
+<div class="progress-wrap"><div class="progress-fill" id="prog"></div></div>
+
+<!-- PAGE 1: SORULAR -->
+<main class="page active" id="page-sorular">
+  <div class="layout">
+    <aside class="sidebar" id="sidebar"></aside>
+    <div class="main-content">
+      <div class="q-nav">
+        <div class="q-nav-info" id="q-nav-info">Soru 1 / 96</div>
+        <div class="nav-arrows">
+          <button class="nav-btn" id="prev-btn" onclick="navigate(-1)" disabled>← Önceki</button>
+          <button class="nav-btn" id="next-btn" onclick="navigate(1)">Sonraki →</button>
+        </div>
+      </div>
+      <div class="section-label" id="q-section-label"></div>
+      <div id="q-area"></div>
+    </div>
+  </div>
+</main>
+
+<!-- PAGE 2: 1296 DETAY -->
+<main class="page" id="page-detay">
+  <div class="detail-header">
+    <div class="detail-title">📊 1.296 Tedbirin Detaylı Değerlendirmesi</div>
+    <div class="detail-sub">
+      Sayfa 1'de verdiğiniz 96 cevap, ilgili tüm tedbirlere otomatik yansıtılır. Her tedbiri tek tek inceleyebilir, gerekirse manuel düzeltebilirsiniz (tıklayarak cevabı değiştirin). AI ile daha akıllı bir analiz için Claude API kullanabilirsiniz.
+    </div>
+    <div class="ai-panel">
+      <div class="ai-info">
+        <strong>🤖 Claude AI Yorumu (opsiyonel)</strong><br>
+        Cevaplarınıza dayanarak detaylı uzman değerlendirmesi alın. Anthropic API anahtarınızı kaydetmeniz gerekir.
+      </div>
+      <button class="btn ai-pulse" id="ai-btn" onclick="runAIAnalysis()">🤖 AI ile Detaylı Analiz</button>
+    </div>
+    <div id="ai-result"></div>
+  </div>
+
+  <div class="filter-bar">
+    <select id="det-cat-filter">
+      <option value="all">Tüm Kategoriler</option>
+    </select>
+    <select id="det-cevap-filter">
+      <option value="all">Tüm Cevaplar</option>
+      <option value="evet">Tamamen</option>
+      <option value="buyuk">Büyük Oranda</option>
+      <option value="kismi">Kısmen</option>
+      <option value="hayir">Uygulanmıyor</option>
+      <option value="kapsam">Kapsam Dışı</option>
+      <option value="bos">Boş (Cevapsız)</option>
+    </select>
+    <input type="text" id="det-search" placeholder="🔍 Soru veya tedbir adı ara...">
+    <div style="font-size:12px;color:var(--text2);margin-left:auto">
+      <span id="det-filtered-count">0</span> sonuç • <span id="detay-count">0 değerlendirildi</span>
+    </div>
+  </div>
+
+  <div class="detail-table">
+    <div id="det-list"></div>
+  </div>
+</main>
+
+<!-- PAGE 3: RAPORLAMA -->
+<main class="page" id="page-rapor">
+  <h1 style="font-size:22px;font-weight:700;margin-bottom:.25rem">📑 KVKK Uyumluluk Raporu</h1>
+  <p style="color:var(--text2);font-size:13px;margin-bottom:1.5rem" id="report-date">Cevapladıkça otomatik güncellenir</p>
+
+  <div class="report-grid" id="report-cards"></div>
+
+  <!-- Uyum Kartı (Excel formatı) -->
+  <div class="uyum-karti">
+    <h3>📊 Uyum Kartı</h3>
+    <table class="uyum-table">
+      <thead>
+        <tr>
+          <th>Uygulama Durumu</th>
+          <th>Soru Sayısı</th>
+          <th>Yüzde</th>
+        </tr>
+      </thead>
+      <tbody id="uyum-tbody"></tbody>
+    </table>
+  </div>
+
+  <!-- Pie + Radar -->
+  <div class="two-col">
+    <div class="chart-card">
+      <div class="chart-title">📊 Genel Uyum Dağılımı</div>
+      <div style="position:relative;height:300px"><canvas id="chart-pie" role="img" aria-label="Uyum dağılım pasta grafiği"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">🎯 Radar Grafik — Alt Kategoriler</div>
+      <div style="position:relative;height:300px"><canvas id="chart-radar" role="img" aria-label="Alt kategoriler radar grafiği"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Çubuk Grafik -->
+  <div class="chart-card">
+    <div class="chart-title">📊 Çubuk Grafik — Ana Kategori Bazlı Uyum</div>
+    <div style="position:relative" id="chart-bar-wrap"><canvas id="chart-bar" role="img" aria-label="Ana kategori çubuk grafiği"></canvas></div>
+  </div>
+
+  <!-- Risk Listeleri -->
+  <div class="two-col">
+    <div>
+      <div class="section-heading">🔴 Kritik Riskler — Uygulanmıyor</div>
+      <div id="risk-list"></div>
+    </div>
+    <div>
+      <div class="section-heading">🟡 İyileştirme Alanları — Kısmen</div>
+      <div id="kismi-list"></div>
+    </div>
+  </div>
+</main>
+
+<!-- API KEY MODAL -->
+<div class="modal-overlay" id="api-modal">
+  <div class="modal">
+    <h3>🔑 Anthropic API Anahtarı</h3>
+    <p>
+      Claude AI ile detaylı analiz için Anthropic API anahtarınızı buraya yapıştırın.
+      Anahtar yalnızca <strong>sizin tarayıcınızda</strong> (localStorage) saklanır,
+      hiçbir sunucuya gönderilmez.
+    </p>
+    <p style="font-size:12px;color:var(--text3)">
+      Anahtar almak için: <a href="https://console.anthropic.com/settings/keys" target="_blank" style="color:var(--teal)">console.anthropic.com</a>
+    </p>
+    <input type="password" id="api-key-input" class="modal-input" placeholder="sk-ant-api03-...">
+    <div class="modal-buttons">
+      <button class="btn btn-ghost" onclick="clearAPIKey()">Sil</button>
+      <button class="btn btn-ghost" onclick="closeAPIModal()">İptal</button>
+      <button class="btn btn-primary" onclick="saveAPIKey()">Kaydet</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
